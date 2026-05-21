@@ -8,6 +8,15 @@ import * as os from 'os';
 // Fixed token
 const FLUX_TOKEN = 'Hsue8p20snchw734ambncMD';
 
+// 与 Worker 的 MODEL_CONFIG 保持一致；用于在 MCP 端就拒掉与模型不匹配的 steps，
+// 避免一次无谓的 Worker 调用以及来自 Worker 的中文 400。
+const MODEL_STEPS_RANGES = {
+  '@cf/black-forest-labs/flux-2-klein-4b': { min: 1, max: 8 },
+  '@cf/black-forest-labs/flux-2-klein-9b': { min: 1, max: 8 },
+  '@cf/black-forest-labs/flux-2-dev': { min: 1, max: 50 },
+};
+const DEFAULT_MODEL_ID = '@cf/black-forest-labs/flux-2-klein-4b';
+
 // 判断文本是否包含中文
 function containsChinese(text) {
   return /[\u4e00-\u9fa5]/.test(text);
@@ -278,6 +287,7 @@ server.tool(
       .int()
       .min(256)
       .max(2048)
+      .multipleOf(32, "width must be a multiple of 32")
       .optional()
       .describe("Image width in pixels, multiple of 32, default 1024"),
     height: z
@@ -285,10 +295,12 @@ server.tool(
       .int()
       .min(256)
       .max(2048)
+      .multipleOf(32, "height must be a multiple of 32")
       .optional()
       .describe("Image height in pixels, multiple of 32, default 1024"),
     steps: z
       .number()
+      .int()
       .min(1)
       .max(50)
       .optional()
@@ -299,6 +311,22 @@ server.tool(
   async (params) => {
     try {
       console.error(`Generating with prompt: ${params.prompt}`);
+
+      // 与 Worker 保持一致：当 steps 给定时，按所选模型的范围进行预校验，
+      // 避免一次无意义的 Worker 调用并直接返回英文报错（Worker 端错误是中文）。
+      if (params.steps !== undefined && params.steps !== null) {
+        const modelId = params.model || DEFAULT_MODEL_ID;
+        const range = MODEL_STEPS_RANGES[modelId];
+        if (range && (params.steps < range.min || params.steps > range.max)) {
+          return {
+            content: [{
+              type: "text",
+              text: `Error: steps must be between ${range.min} and ${range.max} for model ${modelId}`
+            }]
+          };
+        }
+      }
+
       const result = await fluxService.generateImage(
         params.prompt,
         params.steps,
