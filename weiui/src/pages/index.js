@@ -133,9 +133,12 @@ export default function Home() {
         apiToken: '',
         isDeployed: false,
       };
-      // saveApiConfig 对空字符串使用 truthy 短路，无法真正清除存储；
-      // 因此显式地通过 removeFromStorage 删除 URL 与 Token 键。
-      saveApiConfig(newConfig);
+      // saveApiConfig 对 apiUrl/apiToken 用 truthy 短路（'' 不会被写入），
+      // 但对 isDeployed 用 `!== undefined` 判断；因此这里只把 isDeployed=false
+      // 通过 saveApiConfig 持久化，URL 与 Token 通过 removeFromStorage 显式清除。
+      // 这样既避免了对同两个键先无操作写、再删的冗余，也保留了 saveApiConfig
+      // 作为 API config 写入的唯一入口语义。
+      saveApiConfig({ isDeployed: false });
       removeFromStorage(STORAGE_KEYS.API_URL);
       removeFromStorage(STORAGE_KEYS.API_TOKEN);
       setApiConfig(newConfig);

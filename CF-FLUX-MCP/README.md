@@ -15,15 +15,19 @@
 3. 运行`final-simple.bat`查看启动信息（脚本会先校验 `FLUX_TOKEN` 是否已设置，未设置时直接报错退出）
 4. 在Cursor编辑器中配置MCP:
    - 打开设置 -> Copilot设置 -> MCP程序
-   - 添加新程序，**务必通过 `env` 字段把 FLUX_TOKEN 传给子进程**，例如：
+   - 添加新程序，**务必通过 `env` 字段把 FLUX_TOKEN 传给子进程**。Cursor 的 `~/.cursor/mcp.json` 文件采用 `{ "mcpServers": { "<server-name>": { command, args, env } } }` 格式，例如：
      ```json
      {
-       "name": "CF-Flux-Simple",
-       "command": "node",
-       "args": ["D:\\Desktop\\CF-FLUX1.0\\CF-FLUX-MCP\\simple-server-final.js"],
-       "env": { "FLUX_TOKEN": "<the same token you set on the Worker>" }
+       "mcpServers": {
+         "cf-flux-simple": {
+           "command": "node",
+           "args": ["D:\\Desktop\\CF-FLUX1.0\\CF-FLUX-MCP\\simple-server-final.js"],
+           "env": { "FLUX_TOKEN": "<the same token you set on the Worker>" }
+         }
+       }
      }
      ```
+     如果你在 Cursor 设置面板的图形界面中逐字段填写，那么 `cf-flux-simple` 是「Name」、`node` 是「Command」、`args` 数组对应「Arguments」、`env` 对应「Environment Variables」。
    - 描述: Flux图像生成
    - 如果未在 `env` 中提供 `FLUX_TOKEN`，服务器会立即退出并向 stderr 打印一条 actionable 的错误信息，Cursor 端 MCP 连接也会立即失败。
 

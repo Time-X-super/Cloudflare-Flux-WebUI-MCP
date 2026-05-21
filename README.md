@@ -140,18 +140,21 @@ Worker 通过 `Authorization: Bearer <token>` 校验调用方身份，对应的 
 
 2. **WebUI**：首次访问设置页时同时填写 Worker URL 和 API Token，两个值都会保存在浏览器 localStorage 中；点击"重置"会清除两者。Token 必须与 Worker 上配置的 `FLUX_TOKEN` 完全一致。
 
-3. **MCP 服务器（CF-FLUX-MCP）**：在 Cursor MCP 配置的 `"env"` 块中加入 `"FLUX_TOKEN": "<value>"`，例如：
+3. **MCP 服务器（CF-FLUX-MCP）**：在 Cursor 的 `~/.cursor/mcp.json` 中通过 `env` 把 `FLUX_TOKEN` 传给子进程。Cursor 的实际文件格式是 `{ "mcpServers": { "<server-name>": { command, args, env } } }`，例如：
 
    ```json
    {
-     "name": "CF-Flux-Simple",
-     "command": "node",
-     "args": ["D:\\Desktop\\CF-FLUX1.0\\CF-FLUX-MCP\\simple-server-final.js"],
-     "env": { "FLUX_TOKEN": "<the same token you set on the Worker>" }
+     "mcpServers": {
+       "cf-flux-simple": {
+         "command": "node",
+         "args": ["D:\\Desktop\\CF-FLUX1.0\\CF-FLUX-MCP\\simple-server-final.js"],
+         "env": { "FLUX_TOKEN": "<the same token you set on the Worker>" }
+       }
+     }
    }
    ```
 
-   也可以在启动 shell 中先 `set FLUX_TOKEN=...`（Windows）/ `export FLUX_TOKEN=...`（macOS/Linux）。未配置时 MCP 服务器会立即退出并打印 actionable 报错，Cursor 端连接同步失败。
+   如果你是在 Cursor 设置面板里通过图形界面逐字段填写，则 `cf-flux-simple` 是「Name」、`node` 是「Command」、`args` 数组对应「Arguments」、`env` 对应「Environment Variables」。也可以在启动 shell 中先 `set FLUX_TOKEN=...`（Windows）/ `export FLUX_TOKEN=...`（macOS/Linux）。未配置时 MCP 服务器会立即退出并打印 actionable 报错，Cursor 端连接同步失败。
 
 > **重要：之前在仓库公开历史中出现过的 token 已视为泄露，必须更换。** 请使用一个新生成的随机值，例如 `openssl rand -hex 32`，并把它分别写入 Worker secret、WebUI 设置页和 MCP 的 `env.FLUX_TOKEN`。
 

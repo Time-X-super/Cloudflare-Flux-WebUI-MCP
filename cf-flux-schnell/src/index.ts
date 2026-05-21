@@ -76,6 +76,14 @@ class UnauthorizedError extends ApiError {
  *
  * 提示运维人员通过 wrangler secret 注入令牌。English wording is intentional
  * because the message targets the operator, not end users.
+ *
+ * NOTE (semantic review v1, issue #4): the 503 body is intentionally returned
+ * unauthenticated — naming the env var and the remediation command in the body
+ * is mild info disclosure, but the original task brief explicitly accepted this
+ * trade-off ("return a clear 500 (or 503) with a message instructing the operator
+ * to run `wrangler secret put FLUX_TOKEN`. Do NOT silently allow auth bypass.").
+ * Vague public copy + operator-side logging would be the alternative; we picked
+ * actionable copy because misconfigured deployments are the higher-cost failure.
  */
 class MisconfiguredTokenError extends ApiError {
 	constructor() {
