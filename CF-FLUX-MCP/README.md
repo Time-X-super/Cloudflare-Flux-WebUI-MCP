@@ -20,13 +20,20 @@
 
 4. 在Cursor编辑器中使用命令:
    ```
-   /generate-flux-image prompt="美丽的山脉风景" steps=5
+   /generate-flux-image prompt="美丽的山脉风景" model="@cf/black-forest-labs/flux-2-klein-4b" width=1024 height=1024 steps=4
    ```
 
 ## 参数说明
 
 - `prompt`: 图像描述文本 (必填)
-- `steps`: 生成步数，范围1-8 (可选，默认5)
+- `model`: 模型 id (可选)，可选值：
+  - `@cf/black-forest-labs/flux-2-klein-4b` (默认，蒸馏轻量版，1-8 步，默认 4)
+  - `@cf/black-forest-labs/flux-2-klein-9b` (蒸馏均衡版，1-8 步，默认 4)
+  - `@cf/black-forest-labs/flux-2-dev` (完整 Dev 版本，1-50 步，默认 25)
+- `width`: 图像宽度 (可选，默认 1024，范围 256-2048，建议为 32 的倍数)
+- `height`: 图像高度 (可选，默认 1024，范围 256-2048，建议为 32 的倍数)
+- `steps`: 生成步数 (可选)。klein 系列支持 1-8，flux-2-dev 支持 1-50；缺省时由 Worker 按所选模型补默认值
+- `output_dir` / `filename`: 可选，要求 MCP 端将生成的图片落盘到指定目录与文件名
 
 ## API格式
 
@@ -36,13 +43,18 @@ POST https://XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Headers:
   Content-Type: application/json
   Authorization: Bearer Hsue8p20snchw734ambncMD
-  
+
 Body:
 {
   "prompt": "图像描述",
-  "steps": 5  // 可选参数，范围1-8
+  "model": "@cf/black-forest-labs/flux-2-klein-4b",
+  "width": 1024,
+  "height": 1024,
+  "steps": 4
 }
 ```
+
+> 全部三个 FLUX.2 模型共用 Cloudflare Workers AI 的每日 10,000 Neurons 免费额度。
 
 ## 故障排除
 
@@ -50,7 +62,7 @@ Body:
 1. 检查`worker_url.txt`文件是否存在且包含正确的URL
 2. 确保Cursor设置中的命令路径正确
 3. 查看命令行输出是否有错误信息
-4. 尝试调整`steps`参数到其他值(1-8之间)
+4. 调整`steps`参数到所选模型支持的范围内（klein 系列 1-8，flux-2-dev 1-50）
 
 ## 文件说明
 

@@ -80,12 +80,18 @@
 
 3. 在编辑器中使用：
 ```
-/generate-flux-image prompt="您想生成的图像描述" steps=5
+/generate-flux-image prompt="您想生成的图像描述" model="@cf/black-forest-labs/flux-2-klein-4b" width=1024 height=1024 steps=4
 ```
 
 参数说明：
-- prompt：图像描述（必填）
-- steps：生成步数，范围1-8，默认5（可选）
+- `prompt`：图像描述（必填）
+- `model`：模型 id（可选，默认 `@cf/black-forest-labs/flux-2-klein-4b`），可选值：
+  - `@cf/black-forest-labs/flux-2-klein-4b`（蒸馏轻量版，1-8 步，默认 4）
+  - `@cf/black-forest-labs/flux-2-klein-9b`（蒸馏均衡版，1-8 步，默认 4）
+  - `@cf/black-forest-labs/flux-2-dev`（完整 Dev 版本，1-50 步，默认 25）
+- `width`：图像宽度（可选，默认 1024，范围 256-2048，建议为 32 的倍数）
+- `height`：图像高度（可选，默认 1024，范围 256-2048，建议为 32 的倍数）
+- `steps`：生成步数（可选）。klein 系列支持 1-8，flux-2-dev 支持 1-50；缺省时由 Worker 按所选模型自动补默认值
 
 ## API说明
 
@@ -96,13 +102,24 @@ POST https://your-worker-url.workers.dev
 Headers:
   Content-Type: application/json
   Authorization: Bearer Hsue8p20snchw734ambncMD
-  
+
 Body:
 {
   "prompt": "您想生成的图像描述",
-  "steps": 4  // 可选参数，范围1-8
+  "model": "@cf/black-forest-labs/flux-2-klein-4b",
+  "width": 1024,
+  "height": 1024,
+  "steps": 4
 }
 ```
+
+可用的 FLUX.2 模型及推荐步数范围：
+
+- `@cf/black-forest-labs/flux-2-klein-4b`：蒸馏轻量版，速度最快，步数 1-8（默认 4）
+- `@cf/black-forest-labs/flux-2-klein-9b`：蒸馏均衡版，质量与速度兼顾，步数 1-8（默认 4）
+- `@cf/black-forest-labs/flux-2-dev`：完整 Dev 版本，质量最高，步数 1-50（默认 25）
+
+`model`、`width`、`height`、`steps` 均为可选参数；省略时由 Worker 使用上述默认值。三个 FLUX.2 模型均运行在 Cloudflare Workers AI，并共用同一份每日 10,000 Neurons 的免费额度。
 
 ## 多语言支持
 
@@ -129,7 +146,7 @@ Body:
 ### Cursor集成相关
 - **找不到Worker URL**: 确保`worker_url.txt`文件存在并包含正确的URL
 - **MCP连接失败**: 检查Cursor设置中的命令路径是否正确，现在应使用`simple-server-final.js`
-- **图像生成失败**: 确保提示词不包含特殊字符，步数在有效范围内（1-8）
+- **图像生成失败**: 确保提示词不包含特殊字符，步数在所选模型的有效范围内（klein 系列 1-8，flux-2-dev 1-50）
 - **中文提示词处理**: 系统现已内置简单的中英文转换能力，但复杂的中文可能需要您手动输入英文提示词
 
 ## 获取帮助

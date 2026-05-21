@@ -169,21 +169,32 @@ class SimpleFluxService {
     }
   }
   
-  async generateImage(prompt, steps = 5, outputDir = null, filename = null) {
+  async generateImage(prompt, steps, model, width, height, outputDir = null, filename = null) {
     try {
       // 检测并翻译中文提示词
       const englishPrompt = simpleChineseToEnglish(prompt);
-      
+
+      const resolvedModel = model || '@cf/black-forest-labs/flux-2-klein-4b';
+      const resolvedWidth = width || 1024;
+      const resolvedHeight = height || 1024;
+
       console.error(`Sending request to ${this.workerUrl}`);
       console.error(`Original Prompt: ${prompt}`);
       console.error(`English Prompt: ${englishPrompt}`);
+      console.error(`Model: ${resolvedModel}`);
+      console.error(`Size: ${resolvedWidth}x${resolvedHeight}`);
       console.error(`Steps: ${steps}`);
-      
+
       // 准备请求数据 - 使用简单格式避免复杂JSON问题
       const requestData = {
         prompt: englishPrompt,
-        steps: steps
+        model: resolvedModel,
+        width: resolvedWidth,
+        height: resolvedHeight
       };
+      if (steps !== undefined && steps !== null) {
+        requestData.steps = steps;
+      }
       
       console.error('Request data:', JSON.stringify(requestData, null, 2));
       
@@ -251,10 +262,37 @@ const server = new McpServer({
 // Register the image generation tool
 server.tool(
   "generate-flux-image",
-  "Generate an image based on a prompt",
+  "Generate an image based on a prompt using a Cloudflare FLUX.2 model",
   {
     prompt: z.string().describe("Text prompt for image generation"),
-    steps: z.number().min(1).max(8).optional().describe("Number of steps (1-8)"),
+    model: z
+      .enum([
+        "@cf/black-forest-labs/flux-2-klein-4b",
+        "@cf/black-forest-labs/flux-2-klein-9b",
+        "@cf/black-forest-labs/flux-2-dev"
+      ])
+      .optional()
+      .describe("Model id; default @cf/black-forest-labs/flux-2-klein-4b"),
+    width: z
+      .number()
+      .int()
+      .min(256)
+      .max(2048)
+      .optional()
+      .describe("Image width in pixels, multiple of 32, default 1024"),
+    height: z
+      .number()
+      .int()
+      .min(256)
+      .max(2048)
+      .optional()
+      .describe("Image height in pixels, multiple of 32, default 1024"),
+    steps: z
+      .number()
+      .min(1)
+      .max(50)
+      .optional()
+      .describe("Number of diffusion steps. Klein models support 1-8 (default 4); flux-2-dev supports 1-50 (default 25)."),
     output_dir: z.string().optional().describe("Directory path to save the generated image"),
     filename: z.string().optional().describe("Filename to save the image (without extension)")
   },
@@ -262,12 +300,15 @@ server.tool(
     try {
       console.error(`Generating with prompt: ${params.prompt}`);
       const result = await fluxService.generateImage(
-        params.prompt, 
-        params.steps || 5,
+        params.prompt,
+        params.steps,
+        params.model,
+        params.width,
+        params.height,
         params.output_dir,
         params.filename
       );
-      
+
       return {
         content: [{
           type: "text",
