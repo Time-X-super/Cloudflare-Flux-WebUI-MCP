@@ -1,0 +1,8 @@
+# Pin JSON files to LF so the i18n locale files stop drifting between
+# CRLF (legacy Windows checkout) and LF (Linux/CI tooling). This is the
+# fix for semantic-review v1, issue #2 — every translation.json had 64
+# CRLF lines mixed with 14 LF lines, which produced noisy diffs whenever
+# any editor renormalized them. Scope is intentionally narrow: only JSON
+# is touched here, the rest of the tree's existing line endings are left
+# alone to avoid sweeping renormalization on this branch.
+*.json text eol=lf

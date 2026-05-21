@@ -31,6 +31,9 @@
     "saveButton": "حفظ ومتابعة",
     "saveSuccess": "تم حفظ عنوان URL للـ Worker بنجاح!",
     "emptyUrlError": "الرجاء إدخال عنوان URL للـ Worker للمتابعة",
+    "tokenLabel": "رمز API الخاص بـ Worker",
+    "tokenPlaceholder": "الرمز Bearer الذي يتوقعه Worker الخاص بك (يتم ضبطه عبر wrangler secret put FLUX_TOKEN)",
+    "emptyTokenError": "الرجاء إدخال رمز API للمتابعة",
     "guideTitle": "إذا لم يكن لديك عنوان URL للـ Worker، اتبع هذه الخطوات:",
     "guideSteps": {
       "step1": "قم بتشغيل السكريبت <code>start-flux-schnell.bat</code> في الدليل الرئيسي للمشروع",

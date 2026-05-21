@@ -5,8 +5,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-// Fixed token
-const FLUX_TOKEN = 'Hsue8p20snchw734ambncMD';
+// FLUX_TOKEN 必须由调用方通过环境变量提供（在 Cursor MCP 配置的 "env" 块或启动 shell 中设置）。
+// 缺失时立即 fail-fast，避免以未鉴权状态启动 stdio transport。
+const FLUX_TOKEN = process.env.FLUX_TOKEN;
+if (!FLUX_TOKEN) {
+  console.error('FLUX_TOKEN env var is not set. Set it in your Cursor MCP config under "env": { "FLUX_TOKEN": "..." }, or export FLUX_TOKEN=... in the shell that launches this server.');
+  process.exit(1);
+}
 
 // 与 Worker 的 MODEL_CONFIG 保持一致；用于在 MCP 端就拒掉与模型不匹配的 steps，
 // 避免一次无谓的 Worker 调用以及来自 Worker 的中文 400。

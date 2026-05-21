@@ -34,6 +34,11 @@
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 *
+	 * Required secret: FLUX_TOKEN — the bearer token clients must present in
+	 * `Authorization: Bearer <token>`. Set with:
+	 *   npx wrangler secret put FLUX_TOKEN
+	 * Do NOT add FLUX_TOKEN to a `vars` block; it must remain a secret.
 	 */
 
 	/**

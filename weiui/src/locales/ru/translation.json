@@ -31,6 +31,9 @@
     "saveButton": "Сохранить и продолжить",
     "saveSuccess": "URL Worker успешно сохранен!",
     "emptyUrlError": "Пожалуйста, введите URL Worker для продолжения",
+    "tokenLabel": "API-токен Worker",
+    "tokenPlaceholder": "Bearer-токен, который ожидает ваш Worker (задаётся через wrangler secret put FLUX_TOKEN)",
+    "emptyTokenError": "Пожалуйста, введите API-токен для продолжения",
     "guideTitle": "Если у вас еще нет URL Worker, выполните следующие шаги:",
     "guideSteps": {
       "step1": "Запустите скрипт <code>start-flux-schnell.bat</code> в корневой директории проекта",
