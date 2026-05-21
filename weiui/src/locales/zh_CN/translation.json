@@ -31,6 +31,9 @@
     "saveButton": "保存并继续",
     "saveSuccess": "Worker URL已保存成功！",
     "emptyUrlError": "请输入Worker URL才能继续",
+    "tokenLabel": "Worker API Token",
+    "tokenPlaceholder": "Worker 端要求的 Bearer Token（通过 wrangler secret put FLUX_TOKEN 设置）",
+    "emptyTokenError": "请输入 API Token 才能继续",
     "guideTitle": "如果您还没有Worker URL，请参考以下步骤：",
     "guideSteps": {
       "step1": "运行项目根目录下的 <code>start-flux-schnell.bat</code> 脚本",

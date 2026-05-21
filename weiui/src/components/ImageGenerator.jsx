@@ -41,9 +41,10 @@ const DEFAULT_SIZE = 1024;
  * 图像生成器组件
  * @param {Object} props - 组件属性
  * @param {string} props.apiUrl - API URL
+ * @param {string} props.apiToken - API Bearer Token
  * @returns {JSX.Element} 图像生成器组件
  */
-const ImageGenerator = ({ apiUrl }) => {
+const ImageGenerator = ({ apiUrl, apiToken }) => {
   const { t } = useTranslation();
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState(DEFAULT_MODEL_ID);
@@ -54,10 +55,7 @@ const ImageGenerator = ({ apiUrl }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [generatedImages, setGeneratedImages] = useState([]);
-  
-  // 使用固定的API Token
-  const apiToken = 'Hsue8p20snchw734ambncMD';
-  
+
   // 创建API服务
   const apiService = createApiService(apiUrl, apiToken);
 

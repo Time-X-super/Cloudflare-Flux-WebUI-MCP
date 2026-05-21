@@ -31,6 +31,9 @@
     "saveButton": "Save and Continue",
     "saveSuccess": "Worker URL has been saved successfully!",
     "emptyUrlError": "Please enter a Worker URL to continue",
+    "tokenLabel": "Worker API Token",
+    "tokenPlaceholder": "The bearer token your Worker expects (set via wrangler secret put FLUX_TOKEN)",
+    "emptyTokenError": "Please enter the API token to continue",
     "guideTitle": "If you don't have a Worker URL yet, follow these steps:",
     "guideSteps": {
       "step1": "Run the script <code>start-flux-schnell.bat</code> in the project root directory",
