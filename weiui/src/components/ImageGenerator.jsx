@@ -102,6 +102,8 @@ const ImageGenerator = ({ apiUrl }) => {
         setGeneratedImage(result.image);
         
         // 添加到历史记录（包含模型与分辨率信息）
+        // 历史项保存 labelKey 而非已翻译的字符串，这样切换语言时旧条目也会跟随更新；
+        // modelLabel 仍然保留作为回退（兼容旧持久化数据 / 缺少 labelKey 的条目）。
         setGeneratedImages(prev => [
           {
             id: Date.now(),
@@ -109,6 +111,7 @@ const ImageGenerator = ({ apiUrl }) => {
             image: result.image,
             date: new Date().toLocaleString(),
             model,
+            labelKey: activeModel.labelKey,
             modelLabel: t(activeModel.labelKey),
             width: Number(width),
             height: Number(height),
@@ -145,7 +148,10 @@ const ImageGenerator = ({ apiUrl }) => {
    * @param {Object} item - 历史记录项
    * @returns {JSX.Element} 历史记录项组件
    */
-  const renderHistoryItem = (item) => (
+  const renderHistoryItem = (item) => {
+    // labelKey 在新版本被记录；旧条目可能只有已翻译的 modelLabel，回退使用它。
+    const displayedModelLabel = item.labelKey ? t(item.labelKey) : item.modelLabel;
+    return (
     <div key={item.id} className="p-4 bg-gray-800 bg-opacity-50 rounded-lg">
       <div className="flex flex-col md:flex-row gap-4">
         <div className="w-full md:w-32 h-32 overflow-hidden rounded-lg flex-shrink-0">
@@ -161,10 +167,10 @@ const ImageGenerator = ({ apiUrl }) => {
         </div>
         <div className="flex-grow">
           <p className="text-sm text-gray-400 mb-1">{item.date}</p>
-          {(item.modelLabel || item.width) && (
+          {(displayedModelLabel || item.width) && (
             <p className="text-xs text-gray-500 mb-1">
-              {item.modelLabel}
-              {item.modelLabel && item.width ? ' · ' : ''}
+              {displayedModelLabel}
+              {displayedModelLabel && item.width ? ' · ' : ''}
               {item.width && item.height ? `${item.width}x${item.height}` : ''}
             </p>
           )}
@@ -198,7 +204,8 @@ const ImageGenerator = ({ apiUrl }) => {
         </div>
       </div>
     </div>
-  );
+    );
+  };
   
   return (
     <div className="max-w-6xl mx-auto p-6">
