@@ -1,14 +1,15 @@
 /**
- * Welcome to Cloudflare Workers! This is your first worker.
+ * Cloudflare Worker: FLUX.2 多模型文本生图代理
  *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
+ * 支持的模型：
+ *   - @cf/black-forest-labs/flux-2-klein-4b（默认）
+ *   - @cf/black-forest-labs/flux-2-klein-9b
+ *   - @cf/black-forest-labs/flux-2-dev
  *
- * Bind resources to your worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
+ * 所有 FLUX.2 模型必须通过 multipart/form-data 调用：
+ *   env.AI.run(model, { multipart: { body, contentType } })
  *
- * Learn more at https://developers.cloudflare.com/workers/
+ * 学习更多: https://developers.cloudflare.com/workers/
  */
 
 import { z } from 'zod';
@@ -20,10 +21,37 @@ import { ApiError, MethodNotAllowedError, ValidationError } from './errors';
 const FLUX_TOKEN = 'Hsue8p20snchw734ambncMD';
 
 /**
+ * 支持的 FLUX.2 模型 ID 列表
+ */
+const FLUX2_MODELS = [
+	'@cf/black-forest-labs/flux-2-klein-4b',
+	'@cf/black-forest-labs/flux-2-klein-9b',
+	'@cf/black-forest-labs/flux-2-dev',
+] as const;
+
+type FluxModelId = (typeof FLUX2_MODELS)[number];
+
+/**
+ * 默认模型
+ */
+const DEFAULT_MODEL: FluxModelId = '@cf/black-forest-labs/flux-2-klein-4b';
+
+/**
+ * 各模型的 steps 范围与默认值
+ *   - klein-4b / klein-9b：蒸馏模型，1-8 步即可，默认 4
+ *   - flux-2-dev：标准模型，1-50 步，默认 25
+ */
+const MODEL_CONFIG: Record<FluxModelId, { defaultSteps: number; minSteps: number; maxSteps: number }> = {
+	'@cf/black-forest-labs/flux-2-klein-4b': { defaultSteps: 4, minSteps: 1, maxSteps: 8 },
+	'@cf/black-forest-labs/flux-2-klein-9b': { defaultSteps: 4, minSteps: 1, maxSteps: 8 },
+	'@cf/black-forest-labs/flux-2-dev': { defaultSteps: 25, minSteps: 1, maxSteps: 50 },
+};
+
+/**
  * 环境变量接口
  */
 export interface Env {
-	AI: any;
+	AI: Ai;
 }
 
 /**
@@ -34,7 +62,7 @@ interface GenerateImageResponse {
 }
 
 /**
- * API错误类
+ * 未授权错误
  */
 class UnauthorizedError extends ApiError {
 	constructor() {
@@ -44,12 +72,52 @@ class UnauthorizedError extends ApiError {
 }
 
 /**
- * 生成图像请求验证Schema
+ * 生成图像请求验证 Schema
+ *
+ * 接受字段：
+ *   - prompt:  必填，1-2048 字符
+ *   - model:   可选，FLUX.2 三种模型之一，默认 flux-2-klein-4b
+ *   - width:   可选，256-2048 之间且为 32 的倍数的整数，默认 1024
+ *   - height:  可选，256-2048 之间且为 32 的倍数的整数，默认 1024
+ *   - steps:   可选，整数；具体范围由所选模型决定，省略时按模型默认值填充
  */
-const GenerateImageSchema = z.object({
-	prompt: z.string().min(1, '提示不能为空').max(2048, '提示值不得超过2048个字符'),
-	steps: z.number().int().min(1).max(8).default(4).optional(),
-});
+const GenerateImageSchema = z
+	.object({
+		prompt: z.string().min(1, '提示不能为空').max(2048, '提示值不得超过2048个字符'),
+		model: z.enum(FLUX2_MODELS).optional().default(DEFAULT_MODEL),
+		width: z
+			.number()
+			.int()
+			.min(256)
+			.max(2048)
+			.multipleOf(32, 'width 必须为 32 的倍数')
+			.optional()
+			.default(1024),
+		height: z
+			.number()
+			.int()
+			.min(256)
+			.max(2048)
+			.multipleOf(32, 'height 必须为 32 的倍数')
+			.optional()
+			.default(1024),
+		steps: z.number().int().min(1).max(50).optional(),
+	})
+	.superRefine((data, ctx) => {
+		if (data.steps === undefined) return;
+		const cfg = MODEL_CONFIG[data.model];
+		if (data.steps < cfg.minSteps || data.steps > cfg.maxSteps) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['steps'],
+				message: `steps 必须在 ${cfg.minSteps} 与 ${cfg.maxSteps} 之间（模型 ${data.model}）`,
+			});
+		}
+	})
+	.transform((data) => ({
+		...data,
+		steps: data.steps ?? MODEL_CONFIG[data.model].defaultSteps,
+	}));
 
 /**
  * 创建JSON响应
@@ -133,11 +201,37 @@ export default {
 		}
 
 		try {
-			const validatedData = await validateRequest(request);
+			const validated = await validateRequest(request);
 
-			const response = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
-				prompt: validatedData.prompt,
-				steps: validatedData.steps,
+			// 构建 multipart/form-data 请求体（FLUX.2 系列模型的统一调用方式）
+			const form = new FormData();
+			form.append('prompt', validated.prompt);
+			form.append('width', String(validated.width));
+			form.append('height', String(validated.height));
+			form.append('steps', String(validated.steps));
+
+			const formResp = new Response(form);
+			const contentType = formResp.headers.get('content-type');
+			if (!contentType) {
+				throw new ApiError(500, '无法构建多部分请求体');
+			}
+
+			// 使用 Uint8Array 而非 ReadableStream：Workers AI 绑定的公开示例都使用字节缓冲区，
+			// 流体可能在绑定内部被 .arrayBuffer() 一次性消耗掉，不利于重试，亦可能因为类型不
+			// 匹配而被绑定拒绝。先 await arrayBuffer() 拿到完整字节再转发。
+			const bodyBytes = new Uint8Array(await formResp.arrayBuffer());
+
+			// FLUX.2 模型尚未进入 @cloudflare/workers-types，按官方多部分调用契约转发
+			const aiRun = env.AI.run as unknown as (
+				model: FluxModelId,
+				inputs: { multipart: { body: Uint8Array; contentType: string } }
+			) => Promise<{ image?: string }>;
+
+			const response = await aiRun(validated.model, {
+				multipart: {
+					body: bodyBytes,
+					contentType,
+				},
 			});
 
 			const result: GenerateImageResponse = {
@@ -152,13 +246,13 @@ export default {
 			});
 		} catch (error) {
 			const errorResponse = handleError(error);
-			
+
 			// 添加CORS头到错误响应
 			const errorHeaders = new Headers(errorResponse.headers);
 			Object.entries(corsHeaders).forEach(([key, value]) => {
 				errorHeaders.set(key, value);
 			});
-			
+
 			return new Response(errorResponse.body, {
 				status: errorResponse.status,
 				headers: errorHeaders,

@@ -28,16 +28,22 @@ export const createApiService = (baseURL, token) => {
     /**
      * 生成图像
      * @param {string} prompt - 提示词
-     * @param {number} steps - 步数
+     * @param {Object} [options] - 生成参数选项
+     * @param {string} [options.model] - FLUX.2 模型 ID（例如 @cf/black-forest-labs/flux-2-klein-4b）
+     * @param {number} [options.steps] - 推理步数（每个模型的范围由 Worker 校验）
+     * @param {number} [options.width] - 输出宽度（像素）
+     * @param {number} [options.height] - 输出高度（像素）
      * @returns {Promise<Object>} 包含生成图像的响应
      */
-    generateImage: async (prompt, steps = 4) => {
+    generateImage: async (prompt, options = {}) => {
+      const { model, steps, width, height } = options;
       try {
-        const response = await api.post('', {
-          prompt,
-          steps,
-          token, // 后端需要验证token
-        });
+        const body = { prompt };
+        if (model !== undefined) body.model = model;
+        if (steps !== undefined) body.steps = steps;
+        if (width !== undefined) body.width = width;
+        if (height !== undefined) body.height = height;
+        const response = await api.post('', body);
         return response.data;
       } catch (error) {
         console.error('生成图像出错:', error);

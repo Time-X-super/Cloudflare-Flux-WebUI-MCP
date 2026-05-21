@@ -44,7 +44,15 @@
     "resultTitle": "生成结果",
     "promptLabel": "提示词 (Prompt)",
     "promptPlaceholder": "例如：1女孩，可爱，喝水，玻璃杯，晨光，卡通风格，简单背景。请使用英文发送提示词，否则Flux无法准确识别。",
-    "stepsLabel": "步数 (1-8)",
+    "modelLabel": "模型",
+    "widthLabel": "宽度",
+    "heightLabel": "高度",
+    "models": {
+      "klein4b": "FLUX.2 Klein 4B（快速）",
+      "klein9b": "FLUX.2 Klein 9B（均衡）",
+      "dev": "FLUX.2 Dev（高质量）"
+    },
+    "stepsLabel": "步数 ({{min}}-{{max}})",
     "stepsHint": "步数越高，生成的图像质量越好，但需要更长的处理时间。",
     "generateButton": "生成图像",
     "generatingButton": "生成中...",

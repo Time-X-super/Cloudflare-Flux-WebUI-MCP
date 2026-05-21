@@ -1,9 +1,41 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Button from './Button';
 import TextArea from './TextArea';
 import Input from './Input';
 import { createApiService } from '../utils/api';
+
+/**
+ * FLUX.2 模型配置
+ * 每个条目对应一个可选模型及其步数范围
+ */
+const MODELS = [
+  {
+    id: '@cf/black-forest-labs/flux-2-klein-4b',
+    labelKey: 'imageGenerator.models.klein4b',
+    stepsMin: 1,
+    stepsMax: 8,
+    stepsDefault: 4,
+  },
+  {
+    id: '@cf/black-forest-labs/flux-2-klein-9b',
+    labelKey: 'imageGenerator.models.klein9b',
+    stepsMin: 1,
+    stepsMax: 8,
+    stepsDefault: 4,
+  },
+  {
+    id: '@cf/black-forest-labs/flux-2-dev',
+    labelKey: 'imageGenerator.models.dev',
+    stepsMin: 1,
+    stepsMax: 50,
+    stepsDefault: 25,
+  },
+];
+
+const DEFAULT_MODEL_ID = '@cf/black-forest-labs/flux-2-klein-4b';
+const SIZE_PRESETS = [512, 768, 1024, 1280, 1536];
+const DEFAULT_SIZE = 1024;
 
 /**
  * 图像生成器组件
@@ -14,6 +46,9 @@ import { createApiService } from '../utils/api';
 const ImageGenerator = ({ apiUrl }) => {
   const { t } = useTranslation();
   const [prompt, setPrompt] = useState('');
+  const [model, setModel] = useState(DEFAULT_MODEL_ID);
+  const [width, setWidth] = useState(DEFAULT_SIZE);
+  const [height, setHeight] = useState(DEFAULT_SIZE);
   const [steps, setSteps] = useState(4);
   const [generatedImage, setGeneratedImage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +60,23 @@ const ImageGenerator = ({ apiUrl }) => {
   
   // 创建API服务
   const apiService = createApiService(apiUrl, apiToken);
+
+  // 当前选中模型的配置
+  const activeModel = useMemo(
+    () => MODELS.find((m) => m.id === model) || MODELS[0],
+    [model]
+  );
+
+  // 切换模型时把 steps 限制到新模型的 [min, max] 范围内；
+  // 如果之前在新范围之外，则重置为该模型的默认值。
+  useEffect(() => {
+    setSteps((current) => {
+      if (current < activeModel.stepsMin || current > activeModel.stepsMax) {
+        return activeModel.stepsDefault;
+      }
+      return current;
+    });
+  }, [activeModel]);
   
   /**
    * 生成图像
@@ -39,14 +91,31 @@ const ImageGenerator = ({ apiUrl }) => {
     setError('');
     
     try {
-      const result = await apiService.generateImage(prompt, Number(steps));
+      const result = await apiService.generateImage(prompt, {
+        model,
+        steps: Number(steps),
+        width: Number(width),
+        height: Number(height),
+      });
       
       if (result && result.image) {
         setGeneratedImage(result.image);
         
-        // 添加到历史记录
+        // 添加到历史记录（包含模型与分辨率信息）
+        // 历史项保存 labelKey 而非已翻译的字符串，这样切换语言时旧条目也会跟随更新；
+        // modelLabel 仍然保留作为回退（兼容旧持久化数据 / 缺少 labelKey 的条目）。
         setGeneratedImages(prev => [
-          { id: Date.now(), prompt, image: result.image, date: new Date().toLocaleString() },
+          {
+            id: Date.now(),
+            prompt,
+            image: result.image,
+            date: new Date().toLocaleString(),
+            model,
+            labelKey: activeModel.labelKey,
+            modelLabel: t(activeModel.labelKey),
+            width: Number(width),
+            height: Number(height),
+          },
           ...prev
         ].slice(0, 10)); // 只保留最近10张图片
       } else {
@@ -79,7 +148,10 @@ const ImageGenerator = ({ apiUrl }) => {
    * @param {Object} item - 历史记录项
    * @returns {JSX.Element} 历史记录项组件
    */
-  const renderHistoryItem = (item) => (
+  const renderHistoryItem = (item) => {
+    // labelKey 在新版本被记录；旧条目可能只有已翻译的 modelLabel，回退使用它。
+    const displayedModelLabel = item.labelKey ? t(item.labelKey) : item.modelLabel;
+    return (
     <div key={item.id} className="p-4 bg-gray-800 bg-opacity-50 rounded-lg">
       <div className="flex flex-col md:flex-row gap-4">
         <div className="w-full md:w-32 h-32 overflow-hidden rounded-lg flex-shrink-0">
@@ -95,6 +167,13 @@ const ImageGenerator = ({ apiUrl }) => {
         </div>
         <div className="flex-grow">
           <p className="text-sm text-gray-400 mb-1">{item.date}</p>
+          {(displayedModelLabel || item.width) && (
+            <p className="text-xs text-gray-500 mb-1">
+              {displayedModelLabel}
+              {displayedModelLabel && item.width ? ' · ' : ''}
+              {item.width && item.height ? `${item.width}x${item.height}` : ''}
+            </p>
+          )}
           <p className="text-gray-200 line-clamp-2 mb-2">{item.prompt}</p>
           <div className="flex space-x-2">
             <Button
@@ -125,7 +204,8 @@ const ImageGenerator = ({ apiUrl }) => {
         </div>
       </div>
     </div>
-  );
+    );
+  };
   
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -142,15 +222,79 @@ const ImageGenerator = ({ apiUrl }) => {
               rows={6}
               required
             />
-            
+
+            {/* 模型选择 */}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-200 mb-2">
+                {t('imageGenerator.modelLabel')}
+              </label>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="w-full px-4 py-2 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-white transition-colors"
+              >
+                {MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {t(m.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 分辨率：宽 × 高 */}
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-200 mb-2">
+                  {t('imageGenerator.widthLabel')}
+                </label>
+                <select
+                  value={width}
+                  onChange={(e) => setWidth(Number(e.target.value))}
+                  className="w-full px-4 py-2 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-white transition-colors"
+                >
+                  {SIZE_PRESETS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-200 mb-2">
+                  {t('imageGenerator.heightLabel')}
+                </label>
+                <select
+                  value={height}
+                  onChange={(e) => setHeight(Number(e.target.value))}
+                  className="w-full px-4 py-2 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-white transition-colors"
+                >
+                  {SIZE_PRESETS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="mt-4">
               <Input
-                label={t('imageGenerator.stepsLabel')}
+                label={t('imageGenerator.stepsLabel', {
+                  min: activeModel.stepsMin,
+                  max: activeModel.stepsMax,
+                })}
                 type="number"
                 value={steps}
-                onChange={(e) => setSteps(Math.min(8, Math.max(1, parseInt(e.target.value) || 1)))}
-                min="1"
-                max="8"
+                onChange={(e) =>
+                  setSteps(
+                    Math.min(
+                      activeModel.stepsMax,
+                      Math.max(activeModel.stepsMin, parseInt(e.target.value) || activeModel.stepsMin)
+                    )
+                  )
+                }
+                min={activeModel.stepsMin}
+                max={activeModel.stepsMax}
               />
               <p className="text-xs text-gray-400 mt-1">
                 {t('imageGenerator.stepsHint')}
