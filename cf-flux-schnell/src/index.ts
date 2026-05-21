@@ -212,19 +212,24 @@ export default {
 
 			const formResp = new Response(form);
 			const contentType = formResp.headers.get('content-type');
-			if (!formResp.body || !contentType) {
+			if (!contentType) {
 				throw new ApiError(500, '无法构建多部分请求体');
 			}
+
+			// 使用 Uint8Array 而非 ReadableStream：Workers AI 绑定的公开示例都使用字节缓冲区，
+			// 流体可能在绑定内部被 .arrayBuffer() 一次性消耗掉，不利于重试，亦可能因为类型不
+			// 匹配而被绑定拒绝。先 await arrayBuffer() 拿到完整字节再转发。
+			const bodyBytes = new Uint8Array(await formResp.arrayBuffer());
 
 			// FLUX.2 模型尚未进入 @cloudflare/workers-types，按官方多部分调用契约转发
 			const aiRun = env.AI.run as unknown as (
 				model: FluxModelId,
-				inputs: { multipart: { body: ReadableStream; contentType: string } }
+				inputs: { multipart: { body: Uint8Array; contentType: string } }
 			) => Promise<{ image?: string }>;
 
 			const response = await aiRun(validated.model, {
 				multipart: {
-					body: formResp.body,
+					body: bodyBytes,
 					contentType,
 				},
 			});
