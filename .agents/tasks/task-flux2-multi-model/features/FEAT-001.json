@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish a working baseline for all three subprojects: install npm dependencies for cf-flux-schnell, weiui, and CF-FLUX-MCP, and record the current state of the existing build/test commands. This is purely an environment baseline check — do NOT modify code yet. The existing cf-flux-schnell vitest stub is known to be a wrangler-template leftover that no longer matches the Worker (it asserts 'Hello World!'); record this in findings rather than fixing it (the Worker feature replaces it).",
+  "status": "completed",
+  "steps": [
+    "Make Node.js v22 available on PATH for this session: export PATH=/opt/toolchains/.nvm/versions/node/v22.22.3/bin:$PATH (verify with `node --version` showing v22.22.3 and `npm --version`).",
+    "Run `npm install` in cf-flux-schnell/ and confirm it completes without errors. Then run `npx tsc --noEmit` to capture the current TypeScript state of the unchanged Worker.",
+    "Run `npx vitest run` in cf-flux-schnell/ and capture the output. The existing test/index.spec.ts asserts the worker returns 'Hello World!', which the current Worker does not — record the failure mode in findings (do not modify the file in this feature).",
+    "Run `npm install` in weiui/ and then `npm run build` (Next.js build). Capture build success/failure (it should succeed against the existing UI).",
+    "Run `npm install` in CF-FLUX-MCP/ and then `node --check simple-server-final.js` and `node --check test-api.js`. Both should succeed.",
+    "Write a short findings summary into the feature's `findings` field listing: Node version used, results of each command above, and any pre-existing failures so subsequent features know the starting point."
+  ],
+  "acceptance_criteria": [
+    "`npm install` completes successfully in cf-flux-schnell/, weiui/, and CF-FLUX-MCP/.",
+    "`npx tsc --noEmit` in cf-flux-schnell/ exits 0 against the unchanged source.",
+    "`npm run build` in weiui/ exits 0 against the unchanged source.",
+    "`node --check` succeeds for both CF-FLUX-MCP/simple-server-final.js and CF-FLUX-MCP/test-api.js.",
+    "Findings field documents the pre-existing vitest stub mismatch and any other observed pre-existing issues."
+  ],
+  "verification": [
+    "PATH=/opt/toolchains/.nvm/versions/node/v22.22.3/bin:$PATH npx tsc --noEmit (in cf-flux-schnell/)",
+    "PATH=/opt/toolchains/.nvm/versions/node/v22.22.3/bin:$PATH npm run build (in weiui/)",
+    "PATH=/opt/toolchains/.nvm/versions/node/v22.22.3/bin:$PATH node --check simple-server-final.js && node --check test-api.js (in CF-FLUX-MCP/)"
+  ],
+  "blocked_reason": null,
+  "findings": "Node.js: v22.22.3, npm 11.4.2 from /opt/toolchains/.nvm/versions/node/v22.22.3/bin (PATH-exported per command). Baseline results:\n\n1) cf-flux-schnell: `npm install` succeeded (231 packages, 13 audit vulns reported, no install errors). `npx tsc --noEmit` exits 0 against the unchanged Worker source. `npx vitest run` does NOT execute any tests in this sandbox: workerd fails to start with `error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory` (sandbox is missing libatomic.so.1 and ldconfig confirms it is not on the system). Vitest reports `Test Files: no tests, Tests: no tests, Errors: 1 error` with an EPIPE Unhandled Error from miniflare's runtime.updateConfig. Vitest's process exit code is still 0 because the failure is reported as an unhandled error rather than a failed test, so `npm test -- --run` cannot be relied on as a pass/fail gate in this sandbox until either libatomic is installed or tests are restructured. Independently, the existing test/index.spec.ts is the wrangler-template stub: it imports `worker from '../src/index'` and asserts `expect(await response.text()).toMatchInlineSnapshot('Hello World!')` in two tests (`responds with Hello World! (unit style)` and `responds with Hello World! (integration style)`). The current Worker does not return 'Hello World!' anywhere, so these tests would fail on assertion even if workerd could start. Both observations are pre-existing; FEAT-001 does not modify the file. Subsequent Worker-feature work should replace this spec file with real tests that stub env.AI.run via vi.fn() (per context.environment_constraints) and avoid relying on workerd starting if libatomic remains unavailable.\n\n2) weiui: `npm install` succeeded (242 packages, 15 audit vulns reported). `npm run build` (Next.js 14.2.25) compiled successfully and generated 3 static routes (/, /_app, /404) with exit 0. Browserslist printed an outdated-data warning (caniuse-lite is 15 months old) but did not fail the build.\n\n3) CF-FLUX-MCP: `npm install` succeeded (109 packages, 5 audit vulns). `node --check simple-server-final.js` and `node --check test-api.js` both succeeded. Note: running `npm install` rewrote CF-FLUX-MCP/package-lock.json (1 insertion, 175 deletions) because the existing lock file contained stale entries for `axios ^1.8.4` and `node-fetch ^2.7.0` plus `dotenv ^16.4.7` that are not declared in package.json (which only declares `dotenv ^16.0.0`). The regenerated lock matches the current package.json. To preserve this feature as a non-modifying baseline, that lock-file regeneration was reverted via `git checkout -- CF-FLUX-MCP/package-lock.json`; downstream features that touch CF-FLUX-MCP dependencies should expect the lock to regenerate again on their next install.\n\nAcceptance criteria status: all install/tsc/next-build/node-check criteria met. The stale vitest stub mismatch is documented as required; the additional libatomic.so.1 sandbox limitation is documented for downstream features that will exercise the Worker test runner."
+}
