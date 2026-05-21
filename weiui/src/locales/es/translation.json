@@ -44,7 +44,15 @@
     "resultTitle": "Resultado de la generación",
     "promptLabel": "Descripción (Prompt)",
     "promptPlaceholder": "Ejemplo: 1 girl, cute, drinking water, glass cup, morning light, cartoon style, simple background. Por favor, use inglés para obtener mejores resultados, ya que Flux puede no reconocer otros idiomas con precisión.",
-    "stepsLabel": "Pasos (1-8)",
+    "modelLabel": "Modelo",
+    "widthLabel": "Anchura",
+    "heightLabel": "Altura",
+    "models": {
+      "klein4b": "FLUX.2 Klein 4B (rápido)",
+      "klein9b": "FLUX.2 Klein 9B (equilibrado)",
+      "dev": "FLUX.2 Dev (alta calidad)"
+    },
+    "stepsLabel": "Pasos ({{min}}-{{max}})",
     "stepsHint": "Más pasos resultan en una mejor calidad de imagen, pero requieren un mayor tiempo de procesamiento.",
     "generateButton": "Generar imagen",
     "generatingButton": "Generando...",
