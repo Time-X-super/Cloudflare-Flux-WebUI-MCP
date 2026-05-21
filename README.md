@@ -101,7 +101,7 @@ Worker部署后将提供文生图API，可通过以下方式调用：
 POST https://your-worker-url.workers.dev
 Headers:
   Content-Type: application/json
-  Authorization: Bearer Hsue8p20snchw734ambncMD
+  Authorization: Bearer <YOUR_FLUX_TOKEN>
 
 Body:
 {
@@ -113,6 +113,8 @@ Body:
 }
 ```
 
+`<YOUR_FLUX_TOKEN>` 是您通过 `npx wrangler secret put FLUX_TOKEN` 在 Worker 上配置的 Bearer Token，详见下方"配置 API Token"。
+
 可用的 FLUX.2 模型及推荐步数范围：
 
 - `@cf/black-forest-labs/flux-2-klein-4b`：蒸馏轻量版，速度最快，步数 1-8（默认 4）
@@ -120,6 +122,38 @@ Body:
 - `@cf/black-forest-labs/flux-2-dev`：完整 Dev 版本，质量最高，步数 1-50（默认 25）
 
 `model`、`width`、`height`、`steps` 均为可选参数；省略时由 Worker 使用上述默认值。三个 FLUX.2 模型均运行在 Cloudflare Workers AI，并共用同一份每日 10,000 Neurons 的免费额度。
+
+## 配置 API Token
+
+Worker 通过 `Authorization: Bearer <token>` 校验调用方身份，对应的 token 由 Worker 端的 `FLUX_TOKEN` secret 决定。**该值不再硬编码在仓库中**，三处需要保持一致：
+
+1. **Worker 端**：
+
+   ```bash
+   cd cf-flux-schnell
+   npx wrangler secret put FLUX_TOKEN
+   # 按提示粘贴 token，然后重新部署
+   npx wrangler deploy
+   ```
+
+   未设置该 secret 时，Worker 会返回 503 并在响应体里提示 `wrangler secret put FLUX_TOKEN`。
+
+2. **WebUI**：首次访问设置页时同时填写 Worker URL 和 API Token，两个值都会保存在浏览器 localStorage 中；点击"重置"会清除两者。Token 必须与 Worker 上配置的 `FLUX_TOKEN` 完全一致。
+
+3. **MCP 服务器（CF-FLUX-MCP）**：在 Cursor MCP 配置的 `"env"` 块中加入 `"FLUX_TOKEN": "<value>"`，例如：
+
+   ```json
+   {
+     "name": "CF-Flux-Simple",
+     "command": "node",
+     "args": ["D:\\Desktop\\CF-FLUX1.0\\CF-FLUX-MCP\\simple-server-final.js"],
+     "env": { "FLUX_TOKEN": "<the same token you set on the Worker>" }
+   }
+   ```
+
+   也可以在启动 shell 中先 `set FLUX_TOKEN=...`（Windows）/ `export FLUX_TOKEN=...`（macOS/Linux）。未配置时 MCP 服务器会立即退出并打印 actionable 报错，Cursor 端连接同步失败。
+
+> **重要：之前在仓库公开历史中出现过的 token 已视为泄露，必须更换。** 请使用一个新生成的随机值，例如 `openssl rand -hex 32`，并把它分别写入 Worker secret、WebUI 设置页和 MCP 的 `env.FLUX_TOKEN`。
 
 ## 多语言支持
 
@@ -136,6 +170,8 @@ Body:
 语言会自动根据浏览器设置检测，也可以通过界面右上角的语言选择器手动切换。
 
 ## 故障排除
+
+> 如果调用接口出现 **401 Unauthorized** 或 **503**（响应体提示 `wrangler secret put FLUX_TOKEN`），通常是 token 未配置或三方不一致，请先查看 [配置 API Token](#配置-api-token) 章节。
 
 ### WebUI相关
 - **部署失败**: 确保您登录了正确的Cloudflare账户，并拥有部署Worker的权限

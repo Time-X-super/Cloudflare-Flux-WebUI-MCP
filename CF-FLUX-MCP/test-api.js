@@ -1,9 +1,13 @@
 // Simple API test script
 console.log('Starting Flux API test...');
 
-// API constants
-const FLUX_TOKEN = 'Hsue8p20snchw734ambncMD';
-const WORKER_URL = 'https://flux.aipeipei.net';
+// API constants — token must come from the environment, no literal in source
+const FLUX_TOKEN = process.env.FLUX_TOKEN;
+if (!FLUX_TOKEN) {
+  console.error('FLUX_TOKEN env var is not set. Run: FLUX_TOKEN=<your-token> node test-api.js');
+  process.exit(1);
+}
+const WORKER_URL = process.env.WORKER_URL || 'https://flux.aipeipei.net';
 
 // Test cases covering both klein-4b (steps 1-8) and flux-2-dev (steps 1-50)
 const TEST_CASES = [
