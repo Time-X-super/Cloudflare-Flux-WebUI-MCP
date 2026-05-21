@@ -16,11 +16,6 @@ import { z } from 'zod';
 import { ApiError, MethodNotAllowedError, ValidationError } from './errors';
 
 /**
- * 认证令牌
- */
-const FLUX_TOKEN = 'Hsue8p20snchw734ambncMD';
-
-/**
  * 支持的 FLUX.2 模型 ID 列表
  */
 const FLUX2_MODELS = [
@@ -49,9 +44,14 @@ const MODEL_CONFIG: Record<FluxModelId, { defaultSteps: number; minSteps: number
 
 /**
  * 环境变量接口
+ *
+ * - AI:         Workers AI 绑定
+ * - FLUX_TOKEN: 客户端必须在 Authorization 头携带的 Bearer 令牌；
+ *               通过 `npx wrangler secret put FLUX_TOKEN` 注入，绝不要写进源码或 vars。
  */
 export interface Env {
 	AI: Ai;
+	FLUX_TOKEN: string;
 }
 
 /**
@@ -68,6 +68,22 @@ class UnauthorizedError extends ApiError {
 	constructor() {
 		super(401, '未授权访问');
 		this.name = 'UnauthorizedError';
+	}
+}
+
+/**
+ * 配置错误：FLUX_TOKEN 密钥未配置
+ *
+ * 提示运维人员通过 wrangler secret 注入令牌。English wording is intentional
+ * because the message targets the operator, not end users.
+ */
+class MisconfiguredTokenError extends ApiError {
+	constructor() {
+		super(
+			503,
+			'FLUX_TOKEN secret is not configured. Run `wrangler secret put FLUX_TOKEN` (or set it via the Cloudflare dashboard) and redeploy.'
+		);
+		this.name = 'MisconfiguredTokenError';
 	}
 }
 
@@ -157,14 +173,22 @@ const handleError = (error: unknown): Response => {
 /**
  * 验证请求
  */
-const validateRequest = async (request: Request): Promise<z.infer<typeof GenerateImageSchema>> => {
+const validateRequest = async (
+	request: Request,
+	env: Env
+): Promise<z.infer<typeof GenerateImageSchema>> => {
 	if (request.method !== 'POST') {
 		throw new MethodNotAllowedError();
 	}
 
+	// 必须先校验密钥是否注入，避免在未配置 secret 的情况下用空令牌通过比较
+	if (!env.FLUX_TOKEN) {
+		throw new MisconfiguredTokenError();
+	}
+
 	// 验证Authorization头
 	const authHeader = request.headers.get('Authorization');
-	const expectedToken = `Bearer ${FLUX_TOKEN}`;
+	const expectedToken = `Bearer ${env.FLUX_TOKEN}`;
 
 	if (!authHeader || authHeader !== expectedToken) {
 		throw new UnauthorizedError();
@@ -201,7 +225,7 @@ export default {
 		}
 
 		try {
-			const validated = await validateRequest(request);
+			const validated = await validateRequest(request, env);
 
 			// 构建 multipart/form-data 请求体（FLUX.2 系列模型的统一调用方式）
 			const form = new FormData();

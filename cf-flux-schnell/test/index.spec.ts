@@ -16,18 +16,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import worker from '../src/index';
 
-const TOKEN = 'Hsue8p20snchw734ambncMD';
+const TOKEN = 'test-token';
 const DEFAULT_MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
 
 type RunFn = ReturnType<typeof vi.fn>;
 interface FakeEnv {
 	AI: { run: RunFn };
+	FLUX_TOKEN: string;
 }
 
-const makeEnv = (impl?: (model: string, opts: any) => any): FakeEnv => ({
+interface MakeEnvOptions {
+	impl?: (model: string, opts: any) => any;
+	token?: string;
+}
+
+const makeEnv = (options: MakeEnvOptions = {}): FakeEnv => ({
 	AI: {
-		run: vi.fn(impl ?? (async () => ({ image: 'AAAA' }))),
+		run: vi.fn(options.impl ?? (async () => ({ image: 'AAAA' }))),
 	},
+	FLUX_TOKEN: options.token === undefined ? TOKEN : options.token,
 });
 
 const ctx = {
@@ -184,8 +191,10 @@ describe('cf-flux-schnell worker (FLUX.2 multi-model)', () => {
 	});
 
 	it('POST that triggers env.AI.run rejection returns 500 with CORS headers', async () => {
-		const failingEnv = makeEnv(async () => {
-			throw new Error('upstream AI failure');
+		const failingEnv = makeEnv({
+			impl: async () => {
+				throw new Error('upstream AI failure');
+			},
 		});
 		const response = await callWorker(failingEnv, {
 			method: 'POST',
@@ -250,5 +259,70 @@ describe('cf-flux-schnell worker (FLUX.2 multi-model)', () => {
 		});
 		expect(response.status).toBe(400);
 		expect(env.AI.run).not.toHaveBeenCalled();
+	});
+
+	it('POST when env.FLUX_TOKEN is empty returns 503 with operator hint and CORS headers', async () => {
+		const missingEnv = makeEnv({ token: '' });
+		const response = await callWorker(missingEnv, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${TOKEN}`,
+			},
+			body: JSON.stringify({ prompt: 'hello' }),
+		});
+
+		expect(response.status).toBe(503);
+		expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+		expect(response.headers.get('Access-Control-Allow-Methods')).toContain('POST');
+		const json = (await response.json()) as { error: string };
+		expect(json.error).toContain('wrangler secret put FLUX_TOKEN');
+		expect(missingEnv.AI.run).not.toHaveBeenCalled();
+	});
+
+	it('POST when env.FLUX_TOKEN is undefined returns 503 and never invokes AI.run', async () => {
+		const undefinedEnv = makeEnv();
+		// Simulate Wrangler not injecting the secret at all (different from empty string).
+		(undefinedEnv as unknown as { FLUX_TOKEN: string | undefined }).FLUX_TOKEN = undefined;
+		const response = await callWorker(undefinedEnv, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${TOKEN}`,
+			},
+			body: JSON.stringify({ prompt: 'hello' }),
+		});
+
+		expect(response.status).toBe(503);
+		const json = (await response.json()) as { error: string };
+		expect(json.error).toContain('wrangler secret put FLUX_TOKEN');
+		expect(undefinedEnv.AI.run).not.toHaveBeenCalled();
+	});
+
+	it('POST with a custom env.FLUX_TOKEN value authenticates against that token, not the default', async () => {
+		const customEnv = makeEnv({ token: 'another-token' });
+		// Bearer matching the original default TOKEN must now be rejected.
+		const rejected = await callWorker(customEnv, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${TOKEN}`,
+			},
+			body: JSON.stringify({ prompt: 'hello' }),
+		});
+		expect(rejected.status).toBe(401);
+		expect(customEnv.AI.run).not.toHaveBeenCalled();
+
+		// Bearer matching the custom secret should pass through to AI.run.
+		const accepted = await callWorker(customEnv, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: 'Bearer another-token',
+			},
+			body: JSON.stringify({ prompt: 'hello' }),
+		});
+		expect(accepted.status).toBe(200);
+		expect(customEnv.AI.run).toHaveBeenCalledTimes(1);
 	});
 });
